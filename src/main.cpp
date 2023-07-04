@@ -32,6 +32,7 @@ byte
     valTombol1 = 0,
     valTombol2 = 0,
     valTombol3 = 0,
+    valTombol4 = 0,
     pinLedButton1 = PD13,
     pinLedButton2 = PD12,
     pinLedButton3 = PD11,
@@ -52,17 +53,18 @@ uint8_t
 
 int
     gearPosition = 0,
+    motorTorque = 50,
     motorMode = 2,        // Motor - 0 = Manual || 1 = Auto
     motorEn = 1,          // Motor - 0 = Disable || 1 = Enable
     motorVelocity = 1000; // Motor - Speed 1-3000
 
 int
     data_excitation[] = {0, 1},
-    data_direct1[] = {48, 0, 0, 1000, 1000, 3000, 2000, 1},   // Input 1, RPM 1000, CW
-    data_direct2[] = {48, 0, 0, 3000, 1000, 1000, 1000, 1},   // Input 2, RPM 3000, CW
-    data_direct3[] = {48, 0, -1, -1000, 1000, 1000, 1000, 1}, // Input 3, RPM 1000, CCW
-    data_direct4[] = {48, 0, -1, -3000, 1000, 1000, 1000, 1}, // Input 4, RPM 3000, CCW
-    data_direct5[] = {0, 0, 0, 0, 1000, 1000, 1000, 1},       // Input 5, Stop
+    data_direct1[] = {48, 100, 0, 1000, 1000, 3000, 2000, 1},   // Input 1, RPM 1000, CW
+    data_direct2[] = {48, 100, 0, 3000, 1000, 1000, 1000, 1},   // Input 2, RPM 3000, CW
+    data_direct3[] = {48, 100, -1, -1000, 1000, 1000, 1000, 1}, // Input 3, RPM 1000, CCW
+    data_direct4[] = {48, 100, -1, -3000, 1000, 1000, 1000, 1}, // Input 4, RPM 3000, CCW
+    data_direct5[] = {0, 0, 0, 0, 1000, 1000, 1000, 1},         // Input 5, Stop
     start_address_encoder = 9,
     start_address_excitation[] =
         {
@@ -249,23 +251,35 @@ void TaskSerial(void *pvParameters)
       IO_LED_INDIKATOR.toggle(0);
       tickSerial = 0;
     }
+
     master_encoder.query(telegram[22]);
     master.poll();
     master_encoder.poll();
     if (master.getState() == COM_IDLE)
     {
+      if (gearPosition != au16data[24])
+      {
+        // UART_RS485_2.println(au16data[24]);
+        gearPosition = au16data[24];
+      }
+      if (motorTorque != au16data[21])
+      {
+        // UART_RS485_2.println(au16data[21]);
+        motorTorque = au16data[21];
+      }
     }
     if (master_encoder.getState() == COM_IDLE)
     {
-      if (gearPosition != au16data[22])
-      {
-        UART_RS485_2.println(au16data[22]);
-        gearPosition = au16data[22];
-      }
+      // if (gearPosition != au16data[22])
+      // {
+      //   UART_RS485_2.println(au16data[22]);
+      //   gearPosition = au16data[22];
+      // }
     }
     valTombol1 = IO_SW_BUTTON.readButton(FASE_PIN);
-    valTombol2 = IO_SW_BUTTON.readButton(SLOW_PIN);
-    valTombol3 = IO_SW_BUTTON.readButton(SKIP_PIN);
+    valTombol2 = IO_SW_BUTTON.readButton(SKIP_PIN);
+    valTombol3 = IO_SW_BUTTON.readButton(SLOW_PIN);
+    valTombol4 = IO_SW_BUTTON.readButton(FAST_PIN);
     // valTombol1 = digitalRead(pinSw1);
     // valTombol2 = digitalRead(pinSw2);
     // valTombol3 = digitalRead(pinSw3);
@@ -360,18 +374,41 @@ void TaskProses(void *pvParameters)
         case 8:
           au16data[15] = data_direct1[7];
           master.query(telegram[u8query]);
+          t_index++;
+          break;
+        case 9:
+          master.query(telegram[21]);
+          t_index++;
+          break;
+        case 10:
+          master.query(telegram[24]);
           if (motorMode == 0)
           {
             if ((valTombol2 == 0) && (valTombol3 == 1))
             {
-              if (TICK_CCW < 12)
+              if (TICK_CCW < 15)
               {
-                IO_LED_BUTTON.write(SLOW_PIN, LOW);
-                IO_LED_BUTTON.write(SKIP_PIN, HIGH);
+                IO_LED_BUTTON.write(SLOW_PIN, HIGH);
+                IO_LED_BUTTON.write(SKIP_PIN, LOW);
                 IO_LED_INDIKATOR.write(6, LOW);
                 IO_LED_INDIKATOR.write(7, HIGH);
                 data_direct1[2] = -1;
-                data_direct1[3] = -300;
+                if (TICK_CCW < 7)
+                {
+                  data_direct1[3] = -50 * TICK_CCW;
+                  if (data_direct1[3] == 0)
+                  {
+                    data_direct1[3] = -50;
+                  }
+                }
+                else if (TICK_CCW > 11)
+                {
+                  data_direct1[3] = (-350) - ((TICK_CCW - 11) * (-50));
+                }
+                else
+                {
+                  data_direct1[3] = -350;
+                }
                 motorEn = 1;
               }
               else
@@ -385,14 +422,29 @@ void TaskProses(void *pvParameters)
             }
             else if ((valTombol2 == 1) && (valTombol3 == 0))
             {
-              if (TICK_CW < 12)
+              if (TICK_CW < 19)
               {
-                IO_LED_BUTTON.write(SLOW_PIN, HIGH);
-                IO_LED_BUTTON.write(SKIP_PIN, LOW);
+                IO_LED_BUTTON.write(SLOW_PIN, LOW);
+                IO_LED_BUTTON.write(SKIP_PIN, HIGH);
                 IO_LED_INDIKATOR.write(6, HIGH);
                 IO_LED_INDIKATOR.write(7, LOW);
                 data_direct1[2] = 0;
-                data_direct1[3] = 300;
+                if (TICK_CW < 7)
+                {
+                  data_direct1[3] = 50 * TICK_CW;
+                  if (data_direct1[3] == 0)
+                  {
+                    data_direct1[3] = 50;
+                  }
+                }
+                else if (TICK_CW > 11)
+                {
+                  data_direct1[3] = 350 - ((TICK_CW - 11) * (50));
+                }
+                else
+                {
+                  data_direct1[3] = 350;
+                }
                 motorEn = 1;
               }
               else
@@ -481,18 +533,38 @@ void TaskProses(void *pvParameters)
         case 8:
           au16data[15] = data_direct5[7];
           master.query(telegram[u8query]);
+          t_index++;
+          u8query = u8query + 2;
+          break;
+        case 9:
+          master.query(telegram[24]);
           if (motorMode == 0)
           {
             if ((valTombol2 == 0) && (valTombol3 == 1))
             {
-              if (TICK_CCW < 12)
+              if (TICK_CCW < 15)
               {
-                IO_LED_BUTTON.write(SLOW_PIN, LOW);
-                IO_LED_BUTTON.write(SKIP_PIN, HIGH);
+                IO_LED_BUTTON.write(SLOW_PIN, HIGH);
+                IO_LED_BUTTON.write(SKIP_PIN, LOW);
                 IO_LED_INDIKATOR.write(6, LOW);
                 IO_LED_INDIKATOR.write(7, HIGH);
                 data_direct1[2] = -1;
-                data_direct1[3] = -300;
+                if (TICK_CCW < 7)
+                {
+                  data_direct1[3] = -50 * TICK_CCW;
+                  if (data_direct1[3] == 0)
+                  {
+                    data_direct1[3] = -50;
+                  }
+                }
+                else if (TICK_CCW > 11)
+                {
+                  data_direct1[3] = (-350) - ((TICK_CCW - 11) * (-50));
+                }
+                else
+                {
+                  data_direct1[3] = -350;
+                }
                 motorEn = 1;
               }
               else
@@ -506,14 +578,29 @@ void TaskProses(void *pvParameters)
             }
             else if ((valTombol2 == 1) && (valTombol3 == 0))
             {
-              if (TICK_CW < 12)
+              if (TICK_CW < 19)
               {
-                IO_LED_BUTTON.write(SLOW_PIN, HIGH);
-                IO_LED_BUTTON.write(SKIP_PIN, LOW);
+                IO_LED_BUTTON.write(SLOW_PIN, LOW);
+                IO_LED_BUTTON.write(SKIP_PIN, HIGH);
                 IO_LED_INDIKATOR.write(6, HIGH);
                 IO_LED_INDIKATOR.write(7, LOW);
                 data_direct1[2] = 0;
-                data_direct1[3] = 300;
+                if (TICK_CW < 7)
+                {
+                  data_direct1[3] = 50 * TICK_CW;
+                  if (data_direct1[3] == 0)
+                  {
+                    data_direct1[3] = 50;
+                  }
+                }
+                else if (TICK_CW > 11)
+                {
+                  data_direct1[3] = 350 - ((TICK_CW - 11) * (50));
+                }
+                else
+                {
+                  data_direct1[3] = 350;
+                }
                 motorEn = 1;
               }
               else
@@ -539,7 +626,13 @@ void TaskProses(void *pvParameters)
           break;
         }
       }
+
       // ======================================================= AKHIR PENGULANGAN 100 MILIDETIK ============================================================ //
+    }
+
+    if (tick % 10 == 0)
+    {
+      UART_RS485_2.println("DATA SPEED: " + String(data_direct1[3]));
     }
 
     if (tick >= 100)
@@ -547,6 +640,9 @@ void TaskProses(void *pvParameters)
       tick = 0;
       detik++;
       // ========================================================== PENGULANGAN 1 DETIK ============================================================== //
+      UART_RS485_2.println("Gear Poss: " + String(gearPosition));
+      UART_RS485_2.println("Torque: " + String(motorTorque));
+
       digitalToggle(pinLED1);
       IO_LED_INDIKATOR.toggle(1);
       if (motorMode == 0)
@@ -560,7 +656,7 @@ void TaskProses(void *pvParameters)
             {
               TICK_CCW--;
             }
-            if (TICK_CW >= 12)
+            if (TICK_CW >= 18)
             {
               t_index = 0;
               motorEn = 0;
@@ -573,7 +669,7 @@ void TaskProses(void *pvParameters)
             {
               TICK_CW--;
             }
-            if (TICK_CCW >= 12)
+            if (TICK_CCW >= 18)
             {
               t_index = 0;
               motorEn = 0;
@@ -588,7 +684,24 @@ void TaskProses(void *pvParameters)
           if (data_direct1[2] == 0)
           {
             TICK_CW++;
-            if (TICK_CW >= 12)
+            data_direct1[2] = 0;
+            if (TICK_CW < 7)
+            {
+              data_direct1[3] = 50 * TICK_CW;
+              if (data_direct1[3] == 0)
+              {
+                data_direct1[3] = 50;
+              }
+            }
+            else if (TICK_CW > 11)
+            {
+              data_direct1[3] = 350 - ((TICK_CW - 11) * (50));
+            }
+            else
+            {
+              data_direct1[3] = 350;
+            }
+            if (TICK_CW >= 18)
             {
               motorEn = 0;
               TICK_ZERO = 0;
@@ -597,7 +710,24 @@ void TaskProses(void *pvParameters)
           else
           {
             TICK_CCW++;
-            if (TICK_CCW >= 12)
+            data_direct1[2] = -1;
+            if (TICK_CCW < 7)
+            {
+              data_direct1[3] = -50 * TICK_CCW;
+              if (data_direct1[3] == 0)
+              {
+                data_direct1[3] = -50;
+              }
+            }
+            else if (TICK_CCW > 11)
+            {
+              data_direct1[3] = (-350) - ((TICK_CCW - 11) * (-50));
+            }
+            else
+            {
+              data_direct1[3] = -350;
+            }
+            if (TICK_CCW >= 18)
             {
               motorEn = 0;
               TICK_ZERO = 0;
@@ -612,7 +742,7 @@ void TaskProses(void *pvParameters)
             if (data_direct1[2] == 0)
             {
               data_direct1[2] = -1;
-              data_direct1[3] = -300;
+              data_direct1[3] = -50;
               TICK_CCW = 0;
               t_index = 0;
               motorEn = 1;
@@ -620,7 +750,7 @@ void TaskProses(void *pvParameters)
             else
             {
               data_direct1[2] = 0;
-              data_direct1[3] = 300;
+              data_direct1[3] = 50;
               TICK_CW = 0;
               t_index = 0;
               motorEn = 1;
