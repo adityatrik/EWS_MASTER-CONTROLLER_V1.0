@@ -4,6 +4,11 @@
 #include <Wire.h>
 #include <ModbusRtu.h>
 #include <PCF8574.h>
+
+#include <SPI.h>
+#include <RTClib.h>
+#include <SparkFun_External_EEPROM.h>
+#include <ArduinoJson.h>
 // =============================================== Akhir Memasukkan Library Program ======================================================= //
 
 // ======================================================== Memasukkan Variabel =========================================================== //
@@ -386,7 +391,7 @@ void TaskProses(void *pvParameters)
           {
             if ((valTombol2 == 0) && (valTombol3 == 1))
             {
-              if (TICK_CCW < 15)
+              if (TICK_CCW < 19)
               {
                 IO_LED_BUTTON.write(SLOW_PIN, HIGH);
                 IO_LED_BUTTON.write(SKIP_PIN, LOW);
@@ -542,7 +547,7 @@ void TaskProses(void *pvParameters)
           {
             if ((valTombol2 == 0) && (valTombol3 == 1))
             {
-              if (TICK_CCW < 15)
+              if (TICK_CCW < 19)
               {
                 IO_LED_BUTTON.write(SLOW_PIN, HIGH);
                 IO_LED_BUTTON.write(SKIP_PIN, LOW);
@@ -619,6 +624,7 @@ void TaskProses(void *pvParameters)
               IO_LED_INDIKATOR.write(7, HIGH);
               IO_LED_INDIKATOR.write(6, HIGH);
               motorEn = 0;
+
             }
           }
           t_index = 0;
@@ -758,12 +764,13 @@ void TaskProses(void *pvParameters)
           }
         }
       }
-      // UART_RS485_2.println("===================================");
-      // UART_RS485_2.println("CW Index: " + String(TICK_CW));
-      // UART_RS485_2.println("CCW Index: " + String(TICK_CCW));
-      // UART_RS485_2.println("STOP Index: " + String(TICK_ZERO));
-      // UART_RS485_2.println("===================================");
-      // UART_RS485_2.println();
+      UART_RS485_2.println();
+      UART_RS485_2.println("===================================");
+      UART_RS485_2.println("CW Index: " +String(TICK_CW));
+      UART_RS485_2.println("CCW Index: " +String(TICK_CCW));
+      UART_RS485_2.println("STOP Index: " +String(TICK_ZERO));
+      UART_RS485_2.println("===================================");
+      UART_RS485_2.println();
 
       // ======================================================= AKHIR PENGULANGAN 1 DETIK ============================================================ //
       if (detik >= 60)
